@@ -4,11 +4,12 @@
 #
 
 LIBRARY		= libdtree.a
+SHAREDLIB	= libdtree.so
 TEST		= dtreetest
 
 CC		= mpiicc
 
-CCFLAGS		= -openmp -mkl
+CCFLAGS		= -openmp -mkl -shared -fpic
 
 ifndef DEBUG
 CCFLAGS		+= -O3 -g
@@ -37,11 +38,15 @@ endif
 OBJS		= dtree.o
 TEST_OBJS	= $(TEST).o
 
-all: $(LIBRARY) $(TEST)
+all: $(LIBRARY) $(SHAREDLIB) $(TEST)
 
 $(LIBRARY): $(OBJS)
 	rm -f $(LIBRARY)
 	ar qvs $(LIBRARY) $(OBJS)
+
+$(SHAREDLIB): $(OBJS)
+	rm -f $(SHAREDLIB)
+	$(CC) $(CCFLAGS) -o $(SHAREDLIB) $(OBJS)
 
 %.o: %.c
 	$(CC) $(CCFLAGS) -c $<

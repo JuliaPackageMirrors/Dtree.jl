@@ -183,7 +183,7 @@ int main(int argc, char **argv)
     num_items = dtree_initwork(scheduler, &cur_item, &last_item);
     int run_dtree = dtree_run(scheduler);
 
-    TRACE("[%04d] init: %lld \n", my_rank, num_items);
+    TRACE(scheduler, "[%04d] init: %lld \n", my_rank, num_items);
 
     uint64_t tinit_done = _rdtsc();
     uint64_t wi_done = num_items;
@@ -194,12 +194,12 @@ int main(int argc, char **argv)
 
         // run the Dtree if needed
         if (run_dtree  &&  tnum == omp_get_num_threads() - 1) {
-            TRACE("[%04d] runner thread entering\n", my_rank);
+            TRACE(scheduler, "[%04d] runner thread entering\n", my_rank);
 
             while (dtree_run(scheduler))
                 cpupause();
 
-            TRACE("[%04d] runner thread exiting\n", my_rank);
+            TRACE(scheduler, "[%04d] runner thread exiting\n", my_rank);
         }
 
         else {
@@ -215,7 +215,7 @@ int main(int argc, char **argv)
                     num_items = dtree_getwork(scheduler, &cur_item, &last_item);
                     wi_done += num_items;
                     lock_release(lock);
-                    //TRACE("[%04d] getwork: %lld \n", my_rank, num_items);
+                    //TRACE(scheduler, "[%04d] getwork: %lld \n", my_rank, num_items);
                     continue;
                 }
                 item = cur_item++;

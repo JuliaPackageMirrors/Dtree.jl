@@ -284,6 +284,20 @@ static void init_distrib_fractions(dtree_t *dt)
 }
 
 
+/*  dtree_init()
+ */
+int dtree_init(int argc, char **argv)
+{
+    return MPI_Init(&argc, &argv);
+}
+
+
+int dtree_shutdown(void)
+{
+    return MPI_Finalize();
+}
+
+
 /*  dtree_create()
  */
 int dtree_create(int fan_out_,
@@ -296,6 +310,9 @@ int dtree_create(int fan_out_,
             dtree_t **dt_)
 {
     int i;
+
+    printf("%p, %p\n", dt_, *dt_);
+    *dt_ = NULL;
 
     dtree_t *dt = (dtree_t *)_mm_malloc(sizeof (dtree_t), 64);
     if (dt == NULL)
@@ -374,7 +391,7 @@ void dtree_destroy(dtree_t *dt)
 {
     int i, l, r, tnum;
 
-    TRACE("[%04d] fini\n", dt->my_rank);
+    TRACE(dt, "[%04d] fini\n", dt->my_rank);
     MPI_Barrier(MPI_COMM_WORLD);
 
 #ifdef PROFILE_DTREE
@@ -528,7 +545,7 @@ int64_t dtree_initwork(dtree_t *dt, int64_t *first_item, int64_t *last_item)
     if (dt->my_rank != 0) {
         int64_t work[2];
 
-        TRACE("[%04d] initwork: asking [%04d] for work\n", dt->my_rank, dt->parent);
+        TRACE(dt, "[%04d] initwork: asking [%04d] for work\n", dt->my_rank, dt->parent);
 
         MPI_Irecv(&work, 2, MPI_LONG, dt->parent, 0, MPI_COMM_WORLD, &dt->parent_req);
         MPI_Send(&dt->min_distrib, 1, MPI_SHORT, dt->parent, 0, MPI_COMM_WORLD);
@@ -537,7 +554,7 @@ int64_t dtree_initwork(dtree_t *dt, int64_t *first_item, int64_t *last_item)
         dt->next_work_item = dt->first_work_item = work[0];
         dt->last_work_item = work[1];
 
-        TRACE("[%04d] init: got %llu items (%llu to %llu)\n", dt->my_rank,
+        TRACE(dt, "[%04d] init: got %llu items (%llu to %llu)\n", dt->my_rank,
               dt->last_work_item - dt->next_work_item, dt->first_work_item,
               dt->last_work_item);
     }
@@ -563,7 +580,7 @@ int64_t dtree_initwork(dtree_t *dt, int64_t *first_item, int64_t *last_item)
             dt->next_work_item += this_child;
             work[1] = dt->next_work_item;
 
-            TRACE("[%04d] init: feeding %ld items to [%04d]\n",
+            TRACE(dt, "[%04d] init: feeding %ld items to [%04d]\n",
                   dt->my_rank, this_child, dt->children[i]);
 
             MPI_Send(work, 2, MPI_LONG, dt->children[i], 0, MPI_COMM_WORLD);
@@ -599,7 +616,7 @@ static int64_t dtree_getwork_aux(dtree_t *dt, int64_t *first_item, int64_t *last
         if (dt->my_rank == 0)
             dt->first_work_item = dt->next_work_item = dt->last_work_item = 0;
         else {
-            TRACE("[%04d] asking [%04d] for work (had %llu to %llu, at %llu)\n",
+            TRACE(dt, "[%04d] asking [%04d] for work (had %llu to %llu, at %llu)\n",
                   dt->my_rank, dt->parent, dt->first_work_item, dt->last_work_item,
                   dt->next_work_item);
 
@@ -617,13 +634,13 @@ static int64_t dtree_getwork_aux(dtree_t *dt, int64_t *first_item, int64_t *last
             dt->next_work_item = dt->first_work_item = work[0];
             dt->last_work_item = work[1];
 
-            TRACE("[%04d] got %llu items (%llu to %llu)\n", dt->my_rank,
+            TRACE(dt, "[%04d] got %llu items (%llu to %llu)\n", dt->my_rank,
                   dt->last_work_item - dt->first_work_item, dt->first_work_item,
                   dt->last_work_item);
         }
 
         if (dt->last_work_item == 0) {
-            TRACE("[%04d] out of work\n", dt->my_rank);
+            TRACE(dt, "[%04d] out of work\n", dt->my_rank);
             goto outofwork;
         }
     }
@@ -707,7 +724,7 @@ int dtree_run(dtree_t *dt)
         /* feed this child */
         num_items = dtree_getwork_aux(dt, &work[0], &work[1], index, req_items);
 
-        TRACE("[%04d] feeding %ld items to [%04d] (%ld to %ld)\n",
+        TRACE(dt, "[%04d] feeding %ld items to [%04d] (%ld to %ld)\n",
               dt->my_rank, num_items, dt->children[index], work[0], work[1]);
 
         MPI_Isend(work, 2, MPI_LONG, dt->children[index], 0, MPI_COMM_WORLD, &req);

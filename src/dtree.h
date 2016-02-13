@@ -125,6 +125,8 @@ typedef struct dtree_tag {
 
 /* Dtree interface
  */
+int     dtree_init(int argc, char **argv);
+int     dtree_shutdown(void);
 int     dtree_create(int fan_out, int64_t num_work_items, int can_parent,
             double node_mul, double first, double rest, int16_t min_distrib,
             dtree_t **dt);
