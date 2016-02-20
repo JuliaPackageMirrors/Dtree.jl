@@ -1,15 +1,12 @@
 module Dtree
 
-export Dtree, initwork, getwork, run
+export DtreeScheduler, initwork, getwork, nnodes, nodeid, runtree
 
-ccall((:dtree_init, :libdtree), Cint, (Cint, Ptr{Array{Cchar}}),
-      length(ARGS), pointer_from_objref(ARGS))
-
-type Dtree
+type DtreeScheduler
     handle::Array{Ptr{Void}}
-    function Dtree(fan_out::Int, num_work_items::Int64, can_parent::Bool,
-                   node_mul::Float64, first::Float64, rest::Float64,
-                   min_distrib::Int)
+    function DtreeScheduler(fan_out::Int, num_work_items::Int64,
+            can_parent::Bool, node_mul::Float64, first::Float64,
+            rest::Float64, min_distrib::Int)
         d = new([0])
         r = ccall((:dtree_create, :libdtree), Cint, (Cint, Cint, Cint,
                   Cdouble, Cdouble, Cdouble, Cshort, Ptr{Void}), fan_out,
@@ -24,31 +21,35 @@ type Dtree
     end
 end
 
-function Dtree(num_work_items::Int64, first::Float64)
-    Dtree(2048, num_work_items, true, 1.0, first, 0.5, 1)
+DtreeScheduler(num_work_items::Int64, first::Float64) =
+    DtreeScheduler(2048, num_work_items, true, 1.0, first, 0.5, 1)
+DtreeScheduler(num_work_items::Int64, first::Float64, min_distrib::Int) =
+    DtreeScheduler(2048, num_work_items, true, 1.0, first, 0.5, min_distrib)
+
+function __init__()
+    ccall((:dtree_init, :libdtree), Cint, (Cint, Ptr{Array{Cchar}}),
+          length(ARGS), pointer_from_objref(ARGS))
 end
 
-function Dtree(num_work_items::Int64, first::Float64, min_distrib::Int)
-    Dtree(2048, num_work_items, true, 1.0, first, 0.5, min_distrib)
-end
-
-function initwork(dt::Dtree)
+function initwork(dt::DtreeScheduler)
     w = [ 0, 0 ]::Array{Int64}
-    r = ccall((:dtree_initwork, :libdtree), Cint, (Ptr{Int64}, Ptr{Int64}),
-              pointer(w, 1), pointer(w, 2))
+    r = ccall((:dtree_initwork, :libdtree), Cint,
+            (Ptr{Void}, Ptr{Int64}, Ptr{Int64}), dt.handle[1],
+            pointer(w, 1), pointer(w, 2))
     return r, (w[1], w[2])
 end
 
-function getwork(dt::Dtree)
+function getwork(dt::DtreeScheduler)
     w = [ 0, 0 ]::Array{Int64}
-    r = ccall((:dtree_getwork, :libdtree), Cint, (Ptr{Int64}, Ptr{Int64}),
-              pointer(w, 1), pointer(w, 2))
+    r = ccall((:dtree_getwork, :libdtree), Cint,
+            (Ptr{Void}, Ptr{Int64}, Ptr{Int64}), dt.handle[1],
+            pointer(w, 1), pointer(w, 2))
     return r, (w[1], w[2])
 end
 
-function run(dt::Dtree)
-    ccall((:dtree_run, :libdtree), Cint, ())
-end
+nnodes(dt::DtreeScheduler) = Int(ccall((:dtree_nnodes, :libdtree), Cint, (Ptr{Void},), dt.handle[1]))
+nodeid(dt::DtreeScheduler) = Int(ccall((:dtree_nodeid, :libdtree), Cint, (Ptr{Void},), dt.handle[1])+1)
+runtree(dt::DtreeScheduler) = ccall((:dtree_run, :libdtree), Cint, (Ptr{Void},), dt.handle[1])
 
 end # module
 

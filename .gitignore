@@ -1,3 +1,6 @@
+# VIM files
+.*.swp
+
 # Julia files
 *.jl.cov
 *.jl.*.cov
@@ -26,6 +29,7 @@
 *.dylib
 
 # Executables
+dtreetest
 *.exe
 *.out
 *.app

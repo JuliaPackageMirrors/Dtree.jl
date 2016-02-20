@@ -138,6 +138,12 @@ int64_t dtree_initwork(dtree_t *dt, int64_t *first_item, int64_t *last_item);
 /* get a block of work */
 int64_t dtree_getwork(dtree_t *dt, int64_t *first_item, int64_t *last_item);
 
+/* number of participating nodes */
+int     dtree_nnodes(dtree_t *dt);
+
+/* this node's unique identifier */
+int     dtree_nodeid(dtree_t *dt);
+
 /* call from a thread repeatedly until it returns 0 */
 int     dtree_run(dtree_t *dt);
 

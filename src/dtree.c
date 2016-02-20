@@ -311,7 +311,6 @@ int dtree_create(int fan_out_,
 {
     int i;
 
-    printf("%p, %p\n", dt_, *dt_);
     *dt_ = NULL;
 
     dtree_t *dt = (dtree_t *)_mm_malloc(sizeof (dtree_t), 64);
@@ -694,6 +693,22 @@ int64_t dtree_getwork(dtree_t *dt, int64_t *first_item, int64_t *last_item)
 }
 
 
+/*  dtree_nnodes()
+ */
+int dtree_nnodes(dtree_t *dt)
+{
+    return dt->num_ranks;
+}
+
+
+/*  dtree_nodeid()
+ */
+int dtree_nodeid(dtree_t *dt)
+{
+    return dt->my_rank;
+}
+
+
 /*  dtree_run() -- feed children with work. Sending zeroes to a child
         tells it we're completely out of work. Must be called again if 1
         is returned.
@@ -739,4 +754,26 @@ int dtree_run(dtree_t *dt)
     }
 }
 
+
+/*  rdtsc()
+ */
+inline uint64_t __attribute__((always_inline)) rdtsc()
+{
+    uint32_t hi, lo;
+    __asm__ __volatile__(
+        "lfence\n\t"
+        "rdtsc"
+        : "=a"(lo), "=d"(hi)
+        : /* no inputs */
+        : "rbx", "rcx");
+    return ((uint64_t)hi << 32ull) | (uint64_t)lo;
+}
+
+
+/*  cpupause()
+ */
+inline void __attribute__((always_inline)) cpupause()
+{
+    _mm_pause();
+}
 
