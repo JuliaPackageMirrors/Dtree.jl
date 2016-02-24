@@ -772,7 +772,7 @@ inline uint64_t __attribute__((always_inline)) rdtsc()
 
 /*  cpupause()
  */
-inline void __attribute__((always_inline)) cpupause()
+inline void __attribute__((always_inline)) cpu_pause()
 {
     _mm_pause();
 }

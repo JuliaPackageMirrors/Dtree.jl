@@ -1,36 +1,55 @@
 using Base.Threads
 using Dtree
 
-cpu_hz = 1e9
+cpu_hz = 2.3e9
 
 @inline rdtsc() = ccall((:rdtsc, :libdtree), Culonglong, ())
-@inline cpupause() = ccall((:cpupause, :libdtree), Void, ())
-@inline secs2hz(s) = s * cpu_hz
-@inline tputs(tid,s) = ccall(:puts, Cint, (Cstring,), string(tid, "> ", s))
+@inline cpu_pause() = ccall((:cpu_pause, :libdtree), Void, ())
+@inline secs2cpuhz(s) = s * cpu_hz::Float64
+
+@inline function ntputs(nid,tid,s)
+    if nid == 1
+        ccall(:puts, Cint, (Cstring,), string("[", nid, "]<", tid, "> ", s))
+    end
+    return
+end
 
 function threadfun(dt, ni, ci, li, ilock, rundt, dura)
+    nid = nodeid(dt)
     tid = threadid()
     if rundt && tid == 1
+        ntputs(nid, tid, "running tree")
         while runtree(dt)
-            cpupause()
+            cpu_pause()
         end
     else
-        while ni > 0
+        ntputs(nid, tid, string("begin, ", ni[], " items, ", length(dura), " available delays"))
+        while ni[] > 0
             lock!(ilock)
-            if li == 0
+            if li[] == 0
+                ntputs(nid, tid, string("out of work"))
                 unlock!(ilock)
                 break
             end
-            if ci == li
-                ni, (ci, li) = getwork(dt)
+            if ci[] == li[]
+                ntputs(nid, tid, string("work consumed (last was ", li, "); requesting more"))
+                ni[], (ci[], li[]) = getwork(dt)
+                ntputs(nid, tid, string("got ", ni, " work items (", ci, " to ", li, ")"))
                 unlock!(ilock)
                 continue
             end
-            item = ci
-            ci = ci + 1
+            item = ci[]
+            ci[] = ci[] + 1
             unlock!(ilock)
+            ntputs(nid, tid, string("got ", item))
 
             # wait dura[item] seconds
+            ticks = secs2cpuhz(dura[item])
+            ntputs(nid, tid, string("item ", item, ", ", ticks, " ticks"))
+            startts = rdtsc()
+            while rdtsc() - startts < ticks
+                cpu_pause()
+            end
         end
     end
 end
@@ -41,15 +60,12 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
 
     # system/run information
     num_nodes = nnodes(dt)
-    node_id = nodeid(dt)
-    r = rdtsc()
-    sleep(1)
-    global cpu_hz = rdtsc()-r
+    nid = nodeid(dt)
 
     # ---
-    if node_id == 1
+    if nid == 1
         println("dtreebench -- ", num_nodes, " nodes")
-        println("  system clock speed is ", cpu_hz/1e9, " GHz")
+        println("  system clock speed is ", cpu_hz, " GHz")
     end
 
     # roughly how many work items will each node will handle?
@@ -59,7 +75,7 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
     end
 
     # ---
-    if node_id == 1
+    if nid == 1
         println("  ", nwi, " work items, ~", each, " per node")
     end
 
@@ -73,7 +89,7 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
     end
 
     # ---
-    if node_id == 1
+    if nid == 1
         println("  initializing...")
     end
 
@@ -82,22 +98,24 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
     ni, (ci, li) = initwork(dt)
 
     # ---
-    if node_id == 1
+    if nid == 1
         println("  ...done.")
+        println(string("  [0001] has ", ci, " through ", li))
         println("  starting threads...")
     end
 
     # start threads and run 
-    tfargs = Core.svec(dt, ni, ci, li, ilock, runtree(dt)>0, dura)
+    tfargs = Core.svec(dt, Ref(ni), Ref(ci), Ref(li), ilock, runtree(dt)>0, dura)
     ccall(:jl_threading_run, Void, (Any, Any), threadfun, tfargs)
 
     # ---
-    if node_id == 1
+    if nid == 1
         println("  ...done.")
         println("complete")
     end
     dt = ()
 end
 
+bench(80, 0.5, 0.125, 0.2, 0.5, nthreads())
 #bench(1310720, 0.5, 0.125, 0.2, 0.5, nthreads())
 

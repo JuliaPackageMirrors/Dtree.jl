@@ -38,7 +38,7 @@ endif
 OBJS		= dtree.o
 TEST_OBJS	= $(TEST).o
 
-all: $(LIBRARY) $(SHAREDLIB) $(TEST)
+all: $(SHAREDLIB) $(TEST)
 
 $(LIBRARY): $(OBJS)
 	rm -f $(LIBRARY)
@@ -55,5 +55,5 @@ $(TEST): $(LIBRARY) $(TEST_OBJS)
 	$(CC) $(CCFLAGS) -o $(TEST) $(TEST_OBJS) -L. -ldtree
 
 clean:
-	rm -f $(LIBRARY) $(OBJS) $(TEST_OBJS) $(TEST)
+	rm -f $(LIBRARY) $(SHAREDLIB) $(OBJS) $(TEST_OBJS) $(TEST)
 

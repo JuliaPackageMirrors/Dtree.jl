@@ -82,7 +82,7 @@ enum {
 };
 
 char *times_names[] = {
-    "getwork", "mpiwait", "mpisend", "run", ""
+    "getwork", "mpiwait", "mpisend", "runtree", ""
 };
 
 typedef struct thread_timing_tag {
