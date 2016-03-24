@@ -388,7 +388,7 @@ int dtree_create(int fan_out_,
  */
 void dtree_destroy(dtree_t *dt)
 {
-    int i, l, r, tnum;
+    int i, j, l, tnum;
 
     TRACE(dt, "[%04d] fini\n", dt->my_rank);
     MPI_Barrier(MPI_COMM_WORLD);
@@ -420,8 +420,8 @@ void dtree_destroy(dtree_t *dt)
     int num_pranks, *pranks;
     char *cp = getenv("DTREE_PRANKS");
     num_pranks = parse_csv_str(cp, &pranks);
-    for (r = 0;  r < num_pranks;  r++) {
-        if (dt->my_rank == pranks[r]) {
+    for (j = 0;  j < num_pranks;  j++) {
+        if (dt->my_rank == pranks[j]) {
             printf("[%04d] Dtree profile: #calls, total (usecs), "
                    "avg [min, max] (usecs)\n",
                    dt->my_rank);
@@ -429,7 +429,7 @@ void dtree_destroy(dtree_t *dt)
                 double a = 0, t = coll_times[i].total / cpu_mhz;
                 if (coll_times[i].count > 0)
                     a = t / (double)coll_times[i].count;
-                printf("[%04d] %s: %llu, %g, %g, [%g, %g]\n", my_rank,
+                printf("[%04d] %s: %llu, %g, %g, [%g, %g]\n", dt->my_rank,
                        times_names[i], coll_times[i].count, t, a,
                        coll_times[i].min / cpu_mhz, 
                        coll_times[i].max / cpu_mhz);
@@ -439,6 +439,7 @@ void dtree_destroy(dtree_t *dt)
     }
     free(pranks);
 
+#if 0
     // reduce MPI ranks' timing data, averaging by level
     uint64_t *min[NTIMES], *max[NTIMES], *count[NTIMES], *avg[NTIMES],
              *ranks[NTIMES], u, r, a;
@@ -509,6 +510,7 @@ void dtree_destroy(dtree_t *dt)
         free(avg[i]);
         free(ranks[i]);
     }
+#endif
 #endif // PROFILE_DTREE
 
     _mm_free(dt->distrib_fractions);
@@ -695,17 +697,21 @@ int64_t dtree_getwork(dtree_t *dt, int64_t *first_item, int64_t *last_item)
 
 /*  dtree_nnodes()
  */
-int dtree_nnodes(dtree_t *dt)
+int dtree_nnodes()
 {
-    return dt->num_ranks;
+    int num_ranks;
+    MPI_Comm_size(MPI_COMM_WORLD, &num_ranks);
+    return num_ranks;
 }
 
 
 /*  dtree_nodeid()
  */
-int dtree_nodeid(dtree_t *dt)
+int dtree_nodeid()
 {
-    return dt->my_rank;
+    int my_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+    return my_rank;
 }
 
 

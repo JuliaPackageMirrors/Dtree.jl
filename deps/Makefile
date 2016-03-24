@@ -3,13 +3,11 @@
 #  Makefile
 #
 
-LIBRARY		= libdtree.a
 SHAREDLIB	= libdtree.so
-TEST		= dtreetest
 
 CC		= mpiicc
-
 CCFLAGS		= -openmp -mkl -shared -fpic
+LDFLAGS		= -openmp -mkl
 
 ifndef DEBUG
 CCFLAGS		+= -O3 -g
@@ -36,24 +34,19 @@ CCFLAGS		+= -mavx
 endif
 
 OBJS		= dtree.o
-TEST_OBJS	= $(TEST).o
 
-all: $(SHAREDLIB) $(TEST)
+%.o: %.c
+	$(CC) $(CCFLAGS) -c $<
+
+$(SHAREDLIB): $(OBJS)
+	$(CC) $(CCFLAGS) -o $(SHAREDLIB) $(OBJS)
 
 $(LIBRARY): $(OBJS)
 	rm -f $(LIBRARY)
 	ar qvs $(LIBRARY) $(OBJS)
 
-$(SHAREDLIB): $(OBJS)
-	rm -f $(SHAREDLIB)
-	$(CC) $(CCFLAGS) -o $(SHAREDLIB) $(OBJS)
-
-%.o: %.c
-	$(CC) $(CCFLAGS) -c $<
-
-$(TEST): $(LIBRARY) $(TEST_OBJS)
-	$(CC) $(CCFLAGS) -o $(TEST) $(TEST_OBJS) -L. -ldtree
+all: $(SHAREDLIB)
 
 clean:
-	rm -f $(LIBRARY) $(SHAREDLIB) $(OBJS) $(TEST_OBJS) $(TEST)
+	rm -f $(SHAREDLIB) $(OBJS)
 

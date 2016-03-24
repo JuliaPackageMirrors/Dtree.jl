@@ -8,9 +8,9 @@ cpu_hz = 2.3e9
 @inline secs2cpuhz(s) = s * cpu_hz::Float64
 
 @inline function ntputs(nid,tid,s)
-    if nid == 1
+    #if nid == 1
         ccall(:puts, Cint, (Cstring,), string("[", nid, "]<", tid, "> ", s))
-    end
+    #end
     return
 end
 
@@ -32,16 +32,15 @@ function threadfun(dt, ni, ci, li, ilock, rundt, dura)
                 break
             end
             if ci[] == li[]
-                ntputs(nid, tid, string("work consumed (last was ", li, "); requesting more"))
+                ntputs(nid, tid, string("work consumed (last was ", li[], "); requesting more"))
                 ni[], (ci[], li[]) = getwork(dt)
-                ntputs(nid, tid, string("got ", ni, " work items (", ci, " to ", li, ")"))
+                ntputs(nid, tid, string("got ", ni[], " work items (", ci[], " to ", li[], ")"))
                 unlock!(ilock)
                 continue
             end
             item = ci[]
             ci[] = ci[] + 1
             unlock!(ilock)
-            ntputs(nid, tid, string("got ", item))
 
             # wait dura[item] seconds
             ticks = secs2cpuhz(dura[item])
@@ -105,8 +104,8 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
     end
 
     # start threads and run 
-    tfargs = Core.svec(dt, Ref(ni), Ref(ci), Ref(li), ilock, runtree(dt)>0, dura)
-    ccall(:jl_threading_run, Void, (Any, Any), threadfun, tfargs)
+    tfargs = Core.svec(threadfun, dt, Ref(ni), Ref(ci), Ref(li), ilock, runtree(dt)>0, dura)
+    ccall(:jl_threading_run, Void, (Any,), tfargs)
 
     # ---
     if nid == 1
@@ -116,6 +115,6 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
     dt = ()
 end
 
-bench(80, 0.5, 0.125, 0.2, 0.5, nthreads())
-#bench(1310720, 0.5, 0.125, 0.2, 0.5, nthreads())
+#bench(80, 0.5, 0.125, 0.2, 0.5, nthreads())
+bench(1310720, 0.5, 0.125, 0.2, 0.5, nthreads())
 
