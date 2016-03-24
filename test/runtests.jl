@@ -1,5 +1,7 @@
 using Dtree
 using Base.Test
 
-@test 1 == 1
+if dt_nodeid == 1
+    println("Dtree: $dt_nnodes nodes")
+end
 

@@ -11,6 +11,9 @@ function __init__()
 	    Int(ccall((:dtree_nnodes, libdtree), Cint, ()))
     global const dt_nodeid =
 	    Int(ccall((:dtree_nodeid, libdtree), Cint, ())+1)
+    atexit() do
+        ccall((:dtree_shutdown, libdtree), Cint, ())
+    end
 end
 
 type DtreeScheduler
