@@ -60,5 +60,9 @@ end
 runtree(dt::DtreeScheduler) =
     Bool(ccall((:dtree_run, libdtree), Cint, (Ptr{Void},), dt.handle[1])>0)
 
+@inline cpu_pause() = ccall((:cpu_pause, libdtree), Void, ())
+
+@inline rdtsc() = ccall((:rdtsc, libdtree), Culonglong, ())
+
 end # module
 
