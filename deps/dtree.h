@@ -147,6 +147,9 @@ int     dtree_nnodes();
 /* this node's unique identifier */
 int     dtree_nodeid();
 
+/* utility helpers */
+uint64_t rdtsc();
+void     cpu_pause();
 
 #endif  /* _DTREE_H */
 
