@@ -337,7 +337,7 @@ int dtree_create(int fan_out_,
 
     /* leaf nodes don't use 'rest' */
     if (dt->num_children == 0)
-        dt->rest = 1.0;
+        dt->rest = 0.5;
 
     /* distribution fractions */
     dt->distrib_fractions = (double *)
@@ -351,6 +351,10 @@ int dtree_create(int fan_out_,
             printf("%d,", dt->children[i]);
         printf("%d)\n", dt->children[dt->num_children-1]);
     }
+#endif
+#if DEBUG_DTREE
+    printf("[%04d] first wi=%d, last wi=%d, first=%f, rest=%f\n",
+            dt->my_rank, dt->first_work_item, dt->last_work_item, dt->first, dt->rest);
 #endif
 
     /* create MPI receive buffers and request handles for children */
@@ -564,7 +568,7 @@ int64_t dtree_initwork(dtree_t *dt, int64_t *first_item, int64_t *last_item)
     int64_t my_items, avail_items = dt->last_work_item - dt->first_work_item;
     if (dt->num_children > 0)
         avail_items *= dt->first;
-    my_items = avail_items * dt->distrib_fractions[0];
+    my_items = MIN(avail_items * dt->distrib_fractions[0], dt->min_distrib);
     *first_item = dt->next_work_item;
     dt->next_work_item += my_items;
     *last_item = dt->next_work_item;
@@ -575,7 +579,7 @@ int64_t dtree_initwork(dtree_t *dt, int64_t *first_item, int64_t *last_item)
         MPI_Waitall(dt->num_children, dt->children_reqs, MPI_STATUSES_IGNORE);
 
         for (i = 0;  i < dt->num_children;  i++) {
-            int64_t this_child = avail_items * dt->distrib_fractions[i + 1];
+            int64_t this_child = MIN(avail_items * dt->distrib_fractions[i + 1], dt->min_distrib);
             int64_t work[2];
             work[0] = dt->next_work_item;
             dt->next_work_item += this_child;
