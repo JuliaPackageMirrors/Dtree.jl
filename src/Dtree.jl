@@ -2,7 +2,7 @@ module Dtree
 
 export DtreeScheduler, dt_nnodes, dt_nodeid, initwork, getwork, runtree
 
-const libdtree = joinpath(dirname(@__FILE__), "..", "deps", "libdtree")
+const libdtree = joinpath(dirname(@__FILE__), "..", "deps", "libdtree.so")
 
 function __init__()
     ccall((:dtree_init, libdtree), Cint, (Cint, Ptr{Ptr{UInt8}}),
