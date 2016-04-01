@@ -5,12 +5,7 @@
 
 SHAREDLIB	= libdtree.so
 
-CC		= mpiicc
-
-ifdef OPENMPI
 CC		= mpicc
-endif
-
 CCFLAGS		= -shared -fpic
 
 ifndef DEBUG
