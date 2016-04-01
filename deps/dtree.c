@@ -8,10 +8,11 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
 #include <unistd.h>
-#include <omp.h>
+#include <immintrin.h>
 
 #include "dtree.h"
 
@@ -33,11 +34,11 @@
 #ifdef PROFILE_DTREE
 
 #define PROFILE_START(dt,w)                                                             \
-    (dt)->times[omp_get_thread_num()][(w)].last = _rdtsc()
+    (dt)->times[(*(dt)->threadid)()][(w)].last = _rdtsc()
 
 #define PROFILE_STAMP(dt,w)                                                             \
 {                                                                                       \
-    int t = omp_get_thread_num();                                                       \
+    int t = (*(dt)->threadid)();                                                        \
     uint64_t l = (dt)->times[t][(w)].last = _rdtsc() - (dt)->times[t][(w)].last;        \
     if (l < (dt)->times[t][(w)].min) (dt)->times[t][(w)].min = l;                       \
     if (l > (dt)->times[t][(w)].max) (dt)->times[t][(w)].max = l;                       \
@@ -304,6 +305,8 @@ int dtree_create(int fan_out_,
             int64_t num_work_items_,
             int can_parent_,
             double node_mul_,
+            int num_threads_,
+            int (*threadid_)(),
             double first_,
             double rest_,
             int16_t min_distrib_,
@@ -319,6 +322,8 @@ int dtree_create(int fan_out_,
 
     dt->last_work_item = num_work_items_;
     dt->node_mul = node_mul_;
+    dt->num_threads = num_threads_;
+    dt->threadid = threadid_;
     dt->first = first_;
     dt->rest = rest_;
     dt->min_distrib = min_distrib_ * node_mul_;
@@ -367,12 +372,10 @@ int dtree_create(int fan_out_,
     }
 
 #ifdef PROFILE_DTREE
-    dt->num_threads = omp_get_max_threads();
     dt->times = (thread_timing_t **)
             _mm_malloc(dt->num_threads * sizeof (thread_timing_t *), 64);
-    #pragma omp parallel
-    {
-        int tnum = omp_get_thread_num();
+    int tnum;
+    for (tnum = 0;  tnum < dt->num_threads;  tnum++) {
         dt->times[tnum] = (thread_timing_t *)
                 _mm_malloc(NTIMES * sizeof (thread_timing_t), 64);
         for (i = 0;  i < NTIMES;  i++) {
@@ -568,7 +571,9 @@ int64_t dtree_initwork(dtree_t *dt, int64_t *first_item, int64_t *last_item)
     int64_t my_items, avail_items = dt->last_work_item - dt->first_work_item;
     if (dt->num_children > 0)
         avail_items *= dt->first;
-    my_items = MIN(avail_items * dt->distrib_fractions[0], dt->min_distrib);
+    my_items = avail_items * dt->distrib_fractions[0];
+    if (my_items < 1)
+        my_items = dt->min_distrib;
     *first_item = dt->next_work_item;
     dt->next_work_item += my_items;
     *last_item = dt->next_work_item;
@@ -579,7 +584,9 @@ int64_t dtree_initwork(dtree_t *dt, int64_t *first_item, int64_t *last_item)
         MPI_Waitall(dt->num_children, dt->children_reqs, MPI_STATUSES_IGNORE);
 
         for (i = 0;  i < dt->num_children;  i++) {
-            int64_t this_child = MIN(avail_items * dt->distrib_fractions[i + 1], dt->min_distrib);
+            int64_t this_child = avail_items * dt->distrib_fractions[i + 1];
+            if (this_child < 1)
+                this_child = dt->min_distrib;
             int64_t work[2];
             work[0] = dt->next_work_item;
             dt->next_work_item += this_child;

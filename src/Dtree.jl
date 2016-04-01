@@ -1,5 +1,7 @@
 module Dtree
 
+using Base.Threads
+
 export DtreeScheduler, dt_nnodes, dt_nodeid, initwork, getwork, runtree
 
 const libdtree = joinpath(dirname(@__FILE__), "..", "deps", "libdtree.so")
@@ -24,9 +26,10 @@ type DtreeScheduler
             rest::Float64, min_dist::Int)
         d = new([0])
         r = ccall((:dtree_create, libdtree), Cint, (Cint, Cint, Cint,
-                  Cdouble, Cdouble, Cdouble, Cshort, Ptr{Void}),
-		  fan_out, num_work_items, can_parent, node_mul, first, rest, min_dist,
-                  pointer(d.handle))
+                  Cdouble, Cint, Ptr{Void}, Cdouble, Cdouble, Cshort,
+                  Ptr{Void}), fan_out, num_work_items, can_parent, node_mul,
+                  nthreads(), cfunction(threadid, Int64, ()),
+                  first, rest, min_dist, pointer(d.handle))
         if r != 0
             error("construction failure")
         end

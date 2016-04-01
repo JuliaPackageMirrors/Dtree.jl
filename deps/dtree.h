@@ -115,8 +115,10 @@ typedef struct dtree_tag {
     /* for heterogeneous clusters */
     double              node_mul;
 
-#ifdef PROFILE_DTREE
+    /* concurrent calls in from how many threads? */
     int                 num_threads;
+    int                 (*threadid)();
+#ifdef PROFILE_DTREE
     thread_timing_t     **times;
 #endif
 
@@ -128,8 +130,8 @@ typedef struct dtree_tag {
 int     dtree_init(int argc, char **argv);
 int     dtree_shutdown(void);
 int     dtree_create(int fan_out, int64_t num_work_items, int can_parent,
-            double node_mul, double first, double rest, int16_t min_distrib,
-            dtree_t **dt);
+            double node_mul, int num_threads, int (*threadid)(),
+            double first, double rest, int16_t min_distrib, dtree_t **dt);
 void    dtree_destroy(dtree_t *dt);
 
 /* call to get initial work allocation; before dtree_run() is called */
