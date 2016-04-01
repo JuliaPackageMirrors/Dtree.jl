@@ -6,8 +6,12 @@
 SHAREDLIB	= libdtree.so
 
 CC		= mpiicc
-CCFLAGS		= -openmp -mkl -shared -fpic
-LDFLAGS		= -openmp -mkl
+
+ifdef OPENMPI
+CC		= mpicc
+endif
+
+CCFLAGS		= -shared -fpic
 
 ifndef DEBUG
 CCFLAGS		+= -O3 -g
@@ -27,11 +31,11 @@ ifdef PROFILE
 CCFLAGS		+= -DPROFILE_DTREE
 endif
 
-ifdef MIC
-CCFLAGS		+= -mmic
-else
-CCFLAGS		+= -mavx
-endif
+#ifdef MIC
+#CCFLAGS		+= -mmic
+#else
+#CCFLAGS		+= -mavx
+#endif
 
 OBJS		= dtree.o
 
