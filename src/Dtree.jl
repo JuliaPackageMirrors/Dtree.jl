@@ -2,7 +2,7 @@ module Dtree
 
 using Base.Threads
 
-export DtreeScheduler, dt_nnodes, dt_nodeid, initwork, getwork, runtree
+export DtreeScheduler, dt_nnodes, dt_nodeid, initwork, getwork, runtree, cpu_pause
 
 const libdtree = joinpath(dirname(@__FILE__), "..", "deps", "libdtree.so")
 
