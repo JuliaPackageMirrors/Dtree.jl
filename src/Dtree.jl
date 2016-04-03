@@ -46,22 +46,33 @@ DtreeScheduler(num_work_items::Int64, first::Float64, min_distrib::Int) =
 
 function initwork(dt::DtreeScheduler)
     w = [ 1, 1 ]::Array{Int64}
+    wp1 = pointer(w, 1)
+    wp2 = pointer(w, 2)
+    gc_state = ccall(:jl_gc_safe_enter, Int8, ())
     r = ccall((:dtree_initwork, libdtree), Cint,
-            (Ptr{Void}, Ptr{Int64}, Ptr{Int64}), dt.handle[1],
-            pointer(w, 1), pointer(w, 2))
+            (Ptr{Void}, Ptr{Int64}, Ptr{Int64}), dt.handle[1], wp1, wp2)
+    ccall(:jl_gc_safe_leave, Void, (Int8,), gc_state)
     return r, (w[1]+1, w[2])
 end
 
 function getwork(dt::DtreeScheduler)
     w = [ 1, 1 ]::Array{Int64}
+    wp1 = pointer(w, 1)
+    wp2 = pointer(w, 2)
+    gc_state = ccall(:jl_gc_safe_enter, Int8, ())
     r = ccall((:dtree_getwork, libdtree), Cint,
-            (Ptr{Void}, Ptr{Int64}, Ptr{Int64}), dt.handle[1],
-            pointer(w, 1), pointer(w, 2))
+            (Ptr{Void}, Ptr{Int64}, Ptr{Int64}), dt.handle[1], wp1, wp2)
+    ccall(:jl_gc_safe_leave, Void, (Int8,), gc_state)
     return r, (w[1]+1, w[2])
 end
 
-runtree(dt::DtreeScheduler) =
-    Bool(ccall((:dtree_run, libdtree), Cint, (Ptr{Void},), dt.handle[1])>0)
+function runtree(dt::DtreeScheduler)
+    r = 0
+    gc_state = ccall(:jl_gc_safe_enter, Int8, ())
+    r = ccall((:dtree_run, libdtree), Cint, (Ptr{Void},), dt.handle[1])
+    ccall(:jl_gc_safe_leave, Void, (Int8,), gc_state)
+    Bool(r > 0)
+end
 
 @inline cpu_pause() = ccall((:cpu_pause, libdtree), Void, ())
 
