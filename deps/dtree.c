@@ -117,15 +117,19 @@ static void build_tree(dtree_t *dt, int fan_out, int can_parent)
        tree height is 2
      */
     if (num_parents == 1) {
+        dt->num_levels = 2;
         if (dt->my_rank == 0) {
+            dt->my_level = 0;
             dt->num_children = dt->num_ranks - 1;
             dt->children = (int *)_mm_malloc(dt->num_children * sizeof (int), 64);
             for (i = 0;  i < dt->num_children;  ++i)
                 dt->children[i] = i + 1;
             dt->parent = -1;
         }
-        else
+        else {
+            dt->my_level = 1;
             dt->parent = 0;
+        }
 
         return;
     }
@@ -133,12 +137,14 @@ static void build_tree(dtree_t *dt, int fan_out, int can_parent)
     /* more than one parent node: all the root node's children are
        parents--the tree height is 3
      */
+    dt->num_levels = 3;
     int *node_can_parent = (int *)calloc(dt->num_ranks, sizeof (int));
     MPI_Allgather(&can_parent, 1, MPI_INT, node_can_parent, 1, MPI_INT,
                   MPI_COMM_WORLD);
 
     /* the root node identifies its children */
     if (dt->my_rank == 0) {
+        dt->my_level = 0;
         dt->num_children = MAX(1, num_parents - 1);
         dt->children = (int *)_mm_malloc(dt->num_children * sizeof (int), 64);
         int my_child = 0;
@@ -173,6 +179,7 @@ static void build_tree(dtree_t *dt, int fan_out, int can_parent)
 
         /* parents figure out their children */
         if (can_parent  &&  pcount < num_parents) {
+            dt->my_level = 1;
             int i_parent = pcount - 1;
             int first = i_parent * result.quot;
             int last = first + result.quot;
@@ -213,6 +220,7 @@ static void build_tree(dtree_t *dt, int fan_out, int can_parent)
 
         /* children need to figure out their parent */
         else {
+            dt->my_level = 2;
             dt->parent = -1;
             int d = result.quot;
             if (result.rem > 0) ++d;
@@ -241,9 +249,8 @@ static void init_distrib_fractions(dtree_t *dt)
 {
     int i;
 
-    /* there is always myself */
-    dt->distrib_fractions[0] = dt->node_mul;
-    dt->tot_children = dt->node_mul;
+    dt->distrib_fractions[0] = 0.0;
+    dt->tot_children = 0.0;
 
     /* leaf nodes start the reporting */
     if (dt->num_children == 0) {
@@ -267,16 +274,20 @@ static void init_distrib_fractions(dtree_t *dt)
 
         MPI_Waitall(dt->num_children, dt->children_reqs, MPI_STATUSES_IGNORE);
 
-        /* count total children (including myself) */
+        /* count total children */
         for (i = 0;  i < dt->num_children;  i++)
             dt->tot_children += children_sizes[i];
+
+        /* add me as a child too, only if parents work */
+        if (dt->parents_work)
+            dt->tot_children += dt->node_mul;
 
         /* report this up if I have a parent */
         if (dt->parent != -1)
             MPI_Send(&dt->tot_children, 1, MPI_DOUBLE, dt->parent, 0, MPI_COMM_WORLD);
 
         /* calculate the fractions for each child (again, including myself) */
-        dt->distrib_fractions[0] = dt->node_mul / dt->tot_children;
+        dt->distrib_fractions[0] = dt->parents_work ? dt->node_mul / dt->tot_children : 0.0;
         for (i = 0;  i < dt->num_children;  i++)
             dt->distrib_fractions[i + 1] = children_sizes[i] / dt->tot_children;
 
@@ -304,13 +315,15 @@ int dtree_shutdown(void)
 int dtree_create(int fan_out_,
             int64_t num_work_items_,
             int can_parent_,
+            int parents_work_,
             double node_mul_,
             int num_threads_,
             int (*threadid_)(),
             double first_,
             double rest_,
             int16_t min_distrib_,
-            dtree_t **dt_)
+            dtree_t **dt_,
+            int *is_parent_)
 {
     int i;
 
@@ -321,6 +334,7 @@ int dtree_create(int fan_out_,
         return -1;
 
     dt->last_work_item = num_work_items_;
+    dt->parents_work = (int16_t)parents_work_;
     dt->node_mul = node_mul_;
     dt->num_threads = num_threads_;
     dt->threadid = threadid_;
@@ -340,9 +354,9 @@ int dtree_create(int fan_out_,
 
     build_tree(dt, fan_out_, can_parent_);
 
-    /* leaf nodes don't use 'rest' */
+    /* leaf nodes don't scale with `rest` */
     if (dt->num_children == 0)
-        dt->rest = 0.5;
+        dt->rest = 1.0;
 
     /* distribution fractions */
     dt->distrib_fractions = (double *)
@@ -387,6 +401,7 @@ int dtree_create(int fan_out_,
 #endif
 
     *dt_ = dt;
+    *is_parent_ = (dt->num_children > 0);
     return 0;
 }
 
@@ -446,7 +461,6 @@ void dtree_destroy(dtree_t *dt)
     }
     free(pranks);
 
-#if 0
     // reduce MPI ranks' timing data, averaging by level
     uint64_t *min[NTIMES], *max[NTIMES], *count[NTIMES], *avg[NTIMES],
              *ranks[NTIMES], u, r, a;
@@ -465,7 +479,7 @@ void dtree_destroy(dtree_t *dt)
     for (i = 0;  i < NTIMES;  i++) {
         for (l = dt->num_levels - 1;  l >= 0;  l--) {
             r = a = 0;
-            if (my_level == l) {
+            if (dt->my_level == l) {
                 MPI_Reduce(&coll_times[i].min, &min[i][l], 1, MPI_LONG,
                            MPI_MIN, 0, MPI_COMM_WORLD);
                 MPI_Reduce(&coll_times[i].max, &max[i][l], 1, MPI_LONG,
@@ -517,7 +531,6 @@ void dtree_destroy(dtree_t *dt)
         free(avg[i]);
         free(ranks[i]);
     }
-#endif
 #endif // PROFILE_DTREE
 
     _mm_free(dt->distrib_fractions);
@@ -567,26 +580,25 @@ int64_t dtree_initwork(dtree_t *dt, int64_t *first_item, int64_t *last_item)
               dt->last_work_item);
     }
 
-    /* allocate work to me */
+    /* determine and scale with `first`, how much work is available */
     int64_t my_items, avail_items = dt->last_work_item - dt->first_work_item;
-    if (dt->num_children > 0)
-        avail_items *= dt->first;
-    my_items = avail_items * dt->distrib_fractions[0];
-    if (my_items < 1)
-        my_items = dt->min_distrib;
-    *first_item = dt->next_work_item;
-    dt->next_work_item += my_items;
-    *last_item = dt->next_work_item;
-    dt->first_work_item += my_items;
+    if (dt->num_children > 0) avail_items *= dt->first;
+    if (dt->num_children == 0  ||  dt->parents_work) {
+        my_items = MAX(avail_items * dt->distrib_fractions[0], dt->min_distrib);
+        *first_item = dt->next_work_item;
+        dt->next_work_item += my_items;
+        *last_item = dt->next_work_item;
+        dt->first_work_item += my_items;
+    }
 
     /* if I have children, distribute work to them */
     if (dt->num_children > 0) {
         MPI_Waitall(dt->num_children, dt->children_reqs, MPI_STATUSES_IGNORE);
 
         for (i = 0;  i < dt->num_children;  i++) {
-            int64_t this_child = avail_items * dt->distrib_fractions[i + 1];
-            if (this_child < 1)
-                this_child = dt->min_distrib;
+            int64_t this_child = MAX(avail_items * dt->distrib_fractions[i+1],
+                                     dt->min_distrib);
+
             int64_t work[2];
             work[0] = dt->next_work_item;
             dt->next_work_item += this_child;
@@ -702,6 +714,13 @@ outofwork:
  */
 int64_t dtree_getwork(dtree_t *dt, int64_t *first_item, int64_t *last_item)
 {
+    /* if this is a parent and parents don't work, return no work */
+    if (dt->num_children > 0  &&  !dt->parents_work) {
+        *first_item = 0;
+        *last_item = 0;
+        return 0;
+    }
+
     return dtree_getwork_aux(dt, first_item, last_item, -1, 0);
 }
 

@@ -1,6 +1,13 @@
 module Dtree
 
-using Base.Threads
+if VERSION > v"0.5.0-dev"
+    using Base.Threads
+else
+    # Pre-Julia 0.5 there are no threads
+    nthreads() = 1
+    threadid() = 1
+end
+
 
 export DtreeScheduler, dt_nnodes, dt_nodeid, initwork, getwork, runtree, cpu_pause
 
@@ -22,20 +29,23 @@ type DtreeScheduler
     handle::Array{Ptr{Void}}
 
     function DtreeScheduler(fan_out::Int, num_work_items::Int64,
-            can_parent::Bool, node_mul::Float64, first::Float64,
-            rest::Float64, min_dist::Int)
+            can_parent::Bool, node_mul::Float64,
+            first::Float64, rest::Float64, min_dist::Int)
+        parents_work = nthreads()>1 ? 1 : 0
+        cthrid = cfunction(threadid, Int64, ())
         d = new([0])
-        r = ccall((:dtree_create, libdtree), Cint, (Cint, Cint, Cint,
+        p = [ 0 ]
+        r = ccall((:dtree_create, libdtree), Cint, (Cint, Cint, Cint, Cint,
                   Cdouble, Cint, Ptr{Void}, Cdouble, Cdouble, Cshort,
-                  Ptr{Void}), fan_out, num_work_items, can_parent, node_mul,
-                  nthreads(), cfunction(threadid, Int64, ()),
-                  first, rest, min_dist, pointer(d.handle))
+                  Ptr{Void}, Ptr{Int64}), fan_out, num_work_items,
+                  can_parent, parents_work, node_mul, nthreads(), cthrid,
+                  first, rest, min_dist, pointer(d.handle), pointer(p, 1))
         if r != 0
             error("construction failure")
         end
         finalizer(d, (x -> ccall((:dtree_destroy, libdtree),
                                  Void, (Ptr{Void},), d.handle[1])))
-        d
+        d, Bool(p[1])
     end
 end
 
