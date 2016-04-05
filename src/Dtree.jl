@@ -2,10 +2,14 @@ module Dtree
 
 if VERSION > v"0.5.0-dev"
     using Base.Threads
+    enter_gc_safepoint() = ccall(:jl_gc_safe_enter, Int8, ())
+    leave_gc_safepoint(gs) = ccall(:jl_gc_safe_leave, Void, (Int8,), gs)
 else
     # Pre-Julia 0.5 there are no threads
     nthreads() = 1
     threadid() = 1
+    enter_gc_safepoint() = 1
+    leave_gc_safepoint(gs) = 1
 end
 
 
@@ -58,10 +62,10 @@ function initwork(dt::DtreeScheduler)
     w = [ 1, 1 ]::Array{Int64}
     wp1 = pointer(w, 1)
     wp2 = pointer(w, 2)
-    gc_state = ccall(:jl_gc_safe_enter, Int8, ())
+    gs = enter_gc_safepoint()
     r = ccall((:dtree_initwork, libdtree), Cint,
             (Ptr{Void}, Ptr{Int64}, Ptr{Int64}), dt.handle[1], wp1, wp2)
-    ccall(:jl_gc_safe_leave, Void, (Int8,), gc_state)
+    leave_gc_safepoint(gs)
     return r, (w[1]+1, w[2])
 end
 
@@ -69,18 +73,18 @@ function getwork(dt::DtreeScheduler)
     w = [ 1, 1 ]::Array{Int64}
     wp1 = pointer(w, 1)
     wp2 = pointer(w, 2)
-    gc_state = ccall(:jl_gc_safe_enter, Int8, ())
+    gs = enter_gc_safepoint()
     r = ccall((:dtree_getwork, libdtree), Cint,
             (Ptr{Void}, Ptr{Int64}, Ptr{Int64}), dt.handle[1], wp1, wp2)
-    ccall(:jl_gc_safe_leave, Void, (Int8,), gc_state)
+    leave_gc_safepoint(gs)
     return r, (w[1]+1, w[2])
 end
 
 function runtree(dt::DtreeScheduler)
     r = 0
-    gc_state = ccall(:jl_gc_safe_enter, Int8, ())
+    gs = enter_gc_safepoint()
     r = ccall((:dtree_run, libdtree), Cint, (Ptr{Void},), dt.handle[1])
-    ccall(:jl_gc_safe_leave, Void, (Int8,), gc_state)
+    leave_gc_safepoint(gs)
     Bool(r > 0)
 end
 
