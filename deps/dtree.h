@@ -95,6 +95,7 @@ typedef struct thread_timing_tag {
  */
 typedef struct dtree_tag {
     /* tree structure */
+    int8_t              num_levels, my_level;
     int                 parent, *children, num_children;
     double              tot_children;
 
@@ -104,6 +105,7 @@ typedef struct dtree_tag {
     MPI_Request         parent_req, *children_reqs;
 
     /* work distribution policy */
+    int16_t             parents_work;
     double              first, rest;
     double              *distrib_fractions;
     int16_t             min_distrib;
@@ -129,9 +131,11 @@ typedef struct dtree_tag {
  */
 int     dtree_init(int argc, char **argv);
 int     dtree_shutdown(void);
-int     dtree_create(int fan_out, int64_t num_work_items, int can_parent,
+int     dtree_create(int fan_out, int64_t num_work_items,
+            int can_parent, int parents_work,
             double node_mul, int num_threads, int (*threadid)(),
-            double first, double rest, int16_t min_distrib, dtree_t **dt);
+            double first, double rest, int16_t min_distrib,
+            dtree_t **dt, int *is_parent);
 void    dtree_destroy(dtree_t *dt);
 
 /* call to get initial work allocation; before dtree_run() is called */
