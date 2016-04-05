@@ -1,7 +1,20 @@
 #!/usr/bin/env julia
 
-using Base.Threads
 using Dtree
+if VERSION > v"0.5.0-dev"
+    using Base.Threads
+else
+    # Pre-Julia 0.5 there are no threads
+    nthreads() = 1
+    threadid() = 1
+    macro threads(x)
+        x
+    end
+    SpinLock() = 1
+    lock!(l) = ()
+    unlock!(l) = ()
+end
+
 
 const cpu_hz = 2.3e9
 const libdtree = joinpath(dirname(@__FILE__), "..", "deps", "libdtree.so")
@@ -11,9 +24,7 @@ const libdtree = joinpath(dirname(@__FILE__), "..", "deps", "libdtree.so")
 @inline secs2cpuhz(s) = s * cpu_hz::Float64
 
 @inline function ntputs(nid,tid,s)
-    #if nid == 1
-        ccall(:puts, Cint, (Cstring,), string("[", nid, "]<", tid, "> ", s))
-    #end
+    ccall(:puts, Cint, (Cstring,), string("[", nid, "]<", tid, "> ", s))
     return
 end
 
@@ -97,22 +108,24 @@ function bench(nwi, meani, stddevi, first_distrib, rest_distrib, min_distrib, fa
     # ---
     if dt_nodeid == 1
         println("  ...done.")
-        println(string("  [0001] has ", ci, " through ", li))
-        println("  starting threads...")
     end
 
-    # start threads and run 
-    tfargs = Core.svec(threadfun, dt, Ref(ni), Ref(ci), Ref(li), ilock, runtree(dt), dura)
-    ccall(:jl_threading_run, Void, (Any,), tfargs)
+    # start threads and run, or run single-threaded
+    if VERSION > v"0.5.0-dev"
+        tfargs = Core.svec(threadfun, dt, Ref(ni), Ref(ci), Ref(li), ilock, runtree(dt), dura)
+        ccall(:jl_threading_run, Void, (Any,), tfargs)
+    else
+        threadfun(dt, Ref(ni), Ref(ci), Ref(li), ilock, runtree(dt), dura)
+    end
 
     # ---
     if dt_nodeid == 1
-        println("  ...done.")
         println("complete")
     end
     tic()
     finalize(dt)
-    toc()
+    wait_done = toq()
+    ntputs(dt_nodeid, 1, "wait for done: $wait_done secs")
 end
 
 #bench(80, 0.5, 0.125, 0.2, 0.5, nthreads())
