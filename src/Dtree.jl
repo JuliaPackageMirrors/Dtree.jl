@@ -12,9 +12,10 @@ else
     leave_gc_safepoint(gs) = 1
 end
 
-
 export DtreeScheduler, dt_nnodes, dt_nodeid, initwork, getwork, runtree, cpu_pause
 
+const fan_out = 2048
+const drain_rate = 0.4
 const libdtree = joinpath(dirname(@__FILE__), "..", "deps", "libdtree.so")
 
 function __init__()
@@ -54,9 +55,9 @@ type DtreeScheduler
 end
 
 DtreeScheduler(num_work_items::Int64, first::Float64) =
-    DtreeScheduler(2048, num_work_items, true, 1.0, first, 0.5, 1)
+    DtreeScheduler(fan_out, num_work_items, true, 1.0, first, drain_rate, 1)
 DtreeScheduler(num_work_items::Int64, first::Float64, min_distrib::Int) =
-    DtreeScheduler(2048, num_work_items, true, 1.0, first, 0.5, min_distrib)
+    DtreeScheduler(fan_out, num_work_items, true, 1.0, first, drain_rate, min_distrib)
 
 function initwork(dt::DtreeScheduler)
     w = [ 1, 1 ]::Array{Int64}
