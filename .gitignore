@@ -40,3 +40,6 @@ dtreetest
 # Debug files
 *.dSYM/
 
+# Dependencies
+deps/Dtree
+

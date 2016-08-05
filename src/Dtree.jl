@@ -1,6 +1,7 @@
 module Dtree
 
-if VERSION > v"0.5.0-dev"
+#if VERSION > v"0.5.0-dev"
+if isdefined(Base, :Threads)
     using Base.Threads
     enter_gc_safepoint() = ccall(:jl_gc_safe_enter, Int8, ())
     leave_gc_safepoint(gs) = ccall(:jl_gc_safe_leave, Void, (Int8,), gs)
@@ -16,7 +17,9 @@ export DtreeScheduler, dt_nnodes, dt_nodeid, initwork, getwork, runtree, cpu_pau
 
 const fan_out = 2048
 const drain_rate = 0.4
-const libdtree = joinpath(dirname(@__FILE__), "..", "deps", "libdtree.so")
+
+const libdtree = joinpath(Pkg.dir("Dtree"), "deps", "Dtree",
+        "libdtree.$(Libdl.dlext)")
 
 function __init__()
     ccall((:dtree_init, libdtree), Cint, (Cint, Ptr{Ptr{UInt8}}),

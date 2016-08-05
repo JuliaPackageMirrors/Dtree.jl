@@ -11,13 +11,15 @@ else
         x
     end
     SpinLock() = 1
-    lock!(l) = ()
-    unlock!(l) = ()
+    lock(l) = ()
+    unlock(l) = ()
 end
 
 
 const cpu_hz = 2.3e9
-const libdtree = joinpath(dirname(@__FILE__), "..", "deps", "libdtree.so")
+
+const libdtree = joinpath(Pkg.dir("Dtree"), "deps", "Dtree",
+        "libdtree.$(Libdl.dlext)")
 
 @inline rdtsc() = ccall((:rdtsc, libdtree), Culonglong, ())
 @inline cpu_pause() = ccall((:cpu_pause, libdtree), Void, ())
@@ -38,22 +40,22 @@ function threadfun(dt, ni, ci, li, ilock, rundt, dura)
     else
         ntputs(dt_nodeid, tid, string("begin, ", ni[], " items, ", length(dura), " available delays"))
         while ni[] > 0
-            lock!(ilock)
+            lock(ilock)
             if li[] == 0
                 ntputs(dt_nodeid, tid, string("out of work"))
-                unlock!(ilock)
+                unlock(ilock)
                 break
             end
             if ci[] == li[]
                 ntputs(dt_nodeid, tid, string("work consumed (last was ", li[], "); requesting more"))
                 ni[], (ci[], li[]) = getwork(dt)
                 ntputs(dt_nodeid, tid, string("got ", ni[], " work items (", ci[], " to ", li[], ")"))
-                unlock!(ilock)
+                unlock(ilock)
                 continue
             end
             item = ci[]
             ci[] = ci[] + 1
-            unlock!(ilock)
+            unlock(ilock)
 
             # wait dura[item] seconds
             ticks = secs2cpuhz(dura[item])
